@@ -197,6 +197,43 @@ async def get_meal_plan(meal_plan_id: str):
             detail=f"Failed to retrieve meal plan: {str(e)}"
         )
 
+@router.get("/meal-plans/{meal_plan_id}/ingredients")
+async def get_meal_plan_ingredients(meal_plan_id: str):
+    """
+    Get all ingredients from a meal plan
+    
+    Args:
+        meal_plan_id: The ID of the meal plan
+        
+    Returns:
+        List of all ingredients in the meal plan
+    """
+    try:
+        # Get the meal plan from Supabase
+        meal_plan = await supabase_service.get_meal_plan(meal_plan_id)
+        
+        if not meal_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Meal plan with ID {meal_plan_id} not found"
+            )
+        
+        # Extract all ingredients from the meal plan
+        all_ingredients = []
+        for day in meal_plan.get("days", []):
+            for meal in day.get("meals", []):
+                if "ingredients" in meal and meal["ingredients"]:
+                    all_ingredients.extend(meal["ingredients"])
+        
+        return {"meal_plan_id": meal_plan_id, "ingredients": all_ingredients}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get meal plan ingredients: {str(e)}"
+        )
+
 @router.post("/nutrition/calculate", response_model=NutritionResponse)
 async def calculate_nutrition(request: NutritionRequest):
     """
@@ -209,8 +246,8 @@ async def calculate_nutrition(request: NutritionRequest):
         Calculated nutrition data for the meal
     """
     try:
-        # Calculate nutrition data based on ingredients and estimated data
-        nutrition_data = nutrition_service.calculate_meal_nutrition(
+        # Calculate nutrition data for the meal
+        nutrition_data = await nutrition_service.calculate_meal_nutrition(
             request.ingredients,
             request.estimated_data
         )
@@ -224,7 +261,8 @@ async def calculate_nutrition(request: NutritionRequest):
             "fiber_grams": nutrition_data.fiber_grams,
             "sugar_grams": nutrition_data.sugar_grams,
             "sodium_mg": nutrition_data.sodium_mg,
-            "cholesterol_mg": nutrition_data.cholesterol_mg
+            "cholesterol_mg": nutrition_data.cholesterol_mg,
+            "detailed_nutrients": nutrition_data.detailed_nutrients
         }
     except Exception as e:
         raise HTTPException(
@@ -287,8 +325,14 @@ async def generate_shopping_list(request: ShoppingListRequest):
         Generated shopping list with categorized items
     """
     try:
-        # In a real implementation, we would fetch the meal plan from Supabase
-        # For now, we'll use a mock meal plan
+        # Get the meal plan from Supabase
+        meal_plan = await supabase_service.get_meal_plan(request.meal_plan_id)
+        
+        if not meal_plan:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Meal plan with ID {request.meal_plan_id} not found"
+            )
         
         # Generate shopping list using OpenAI
         shopping_list = await openai_service.generate_shopping_list(
@@ -300,6 +344,8 @@ async def generate_shopping_list(request: ShoppingListRequest):
         saved_shopping_list = await supabase_service.save_shopping_list(ShoppingList(**shopping_list))
         
         return saved_shopping_list
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

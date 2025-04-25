@@ -42,7 +42,9 @@ class MealPlan(BaseModel):
 class ShoppingListItem(BaseModel):
     item_name: str
     quantity: str
+    unit: Optional[str] = ""
     category: str
+    note: Optional[str] = ""
     is_purchased: bool = False
 
 class ShoppingList(BaseModel):
@@ -198,7 +200,9 @@ class SupabaseService:
                         "shopping_list_id": shopping_list_id,
                         "item_name": item.item_name,
                         "quantity": item.quantity,
+                        "unit": item.unit,
                         "category": item.category,
+                        "note": item.note,
                         "is_purchased": item.is_purchased
                     }
                     
