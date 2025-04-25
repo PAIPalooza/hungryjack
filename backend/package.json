@@ -1,0 +1,19 @@
+{
+  "name": "hungryjack-backend",
+  "version": "0.1.0",
+  "description": "Backend for HungryJack AI Meal Planner",
+  "main": "index.js",
+  "scripts": {
+    "deploy-schema": "node db/deploy.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.49.4"
+  },
+  "devDependencies": {
+    "dotenv": "^16.5.0"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
