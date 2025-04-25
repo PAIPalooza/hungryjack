@@ -184,6 +184,12 @@ yarn-error.log
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+package-lock.json
+yarn.lock
+.npm
+
+# Supabase
+.supabase/
 
 # Next.js build output
 .next/
