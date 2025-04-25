@@ -1,5 +1,3 @@
----
-
 # 🥗 Product Requirements Document (PRD)  
 **Product Name:** AI Meal Planner  
 **Version:** v1.0  
