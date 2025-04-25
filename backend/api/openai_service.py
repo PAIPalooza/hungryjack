@@ -177,61 +177,109 @@ class OpenAIService:
             print(f"Error generating meal plan: {str(e)}")
             raise
     
-    async def generate_shopping_list(self, meal_plan: MealPlan) -> Dict:
+    async def generate_shopping_list(self, user_id: str, meal_plan_id: str) -> Dict:
         """
         Generate a shopping list based on a meal plan using OpenAI
         
         Args:
-            meal_plan: The meal plan to generate a shopping list for
+            user_id: The ID of the user
+            meal_plan_id: The ID of the meal plan to generate a shopping list for
             
         Returns:
             A structured shopping list object
         """
-        # Extract all ingredients from the meal plan
-        all_ingredients = []
-        for day in meal_plan.days:
-            for meal in day.meals:
-                all_ingredients.extend(meal.ingredients)
-        
-        # Construct the prompt for OpenAI
-        system_prompt = """
-        You are a helpful assistant that organizes shopping lists. Your task is to take a list of ingredients from a meal plan and create a consolidated, categorized shopping list.
-        
-        The shopping list should:
-        1. Combine duplicate ingredients and adjust quantities
-        2. Organize ingredients by category (produce, meat, dairy, grains, etc.)
-        3. Be clear and easy to use while shopping
-        
-        Provide your response as a structured JSON object following this format:
-        {
-          "categories": [
-            {
-              "name": "Produce",
-              "items": [
-                {
-                  "item_name": "Apples",
-                  "quantity": "4",
-                  "note": "Granny Smith preferred"
-                },
-                // more items...
-              ]
-            },
-            // more categories...
-          ]
-        }
-        
-        Only return the JSON object, no other text.
-        """
-        
-        user_prompt = f"""
-        Please create a shopping list for the following ingredients:
-        
-        {json.dumps(all_ingredients, indent=2)}
-        
-        Please consolidate duplicate items and organize them by category.
-        """
-        
         try:
+            # Fetch the meal plan from Supabase
+            # For now, we'll use a mock meal plan with ingredients
+            
+            # Mock meal plan data for development
+            meal_plan = {
+                "days": [
+                    {
+                        "day_number": 1,
+                        "meals": [
+                            {
+                                "meal_type": "breakfast",
+                                "name": "Meal name",
+                                "description": "Brief description",
+                                "calories": 500,
+                                "protein_grams": 30,
+                                "carbs_grams": 40,
+                                "fat_grams": 20,
+                                "ingredients": ["1 cup oats", "1 tbsp honey"],
+                                "recipe": "Step-by-step instructions..."
+                            },
+                            # lunch and dinner meals follow the same format
+                        ],
+                        "total_calories": 2000,
+                        "total_protein_grams": 120,
+                        "total_carbs_grams": 200,
+                        "total_fat_grams": 60
+                    },
+                    # additional days follow the same format
+                ]
+            }
+            
+            # Extract all ingredients from the meal plan
+            all_ingredients = []
+            for day in meal_plan.get("days", []):
+                for meal in day.get("meals", []):
+                    all_ingredients.extend(meal.get("ingredients", []))
+            
+            # Construct the prompt for OpenAI
+            system_prompt = """
+            You are a helpful assistant that organizes shopping lists. Your task is to take a list of ingredients from a meal plan and create a consolidated, categorized shopping list.
+            
+            The shopping list should:
+            1. Combine duplicate ingredients and adjust quantities (e.g., "1 cup rice" and "2 cups rice" become "3 cups rice")
+            2. Organize ingredients by category using these standard grocery categories:
+               - Produce (fruits and vegetables)
+               - Meat and Seafood
+               - Dairy and Eggs
+               - Grains and Bread
+               - Canned and Jarred Goods
+               - Dry Goods and Pantry
+               - Herbs and Spices
+               - Oils, Vinegars, and Condiments
+               - Frozen Foods
+               - Beverages
+               - Snacks
+               - Baking Supplies
+               - Other
+            3. Standardize units where possible (e.g., convert tablespoons to cups if there are many tablespoons)
+            4. Include a note field for any special instructions (e.g., "ripe for guacamole" for avocados)
+            5. Be smart about combining similar items (e.g., "red bell pepper" and "green bell pepper" could be listed as "bell peppers (1 red, 1 green)")
+            
+            Provide your response as a structured JSON object following this format:
+            {
+              "categories": [
+                {
+                  "name": "Produce",
+                  "items": [
+                    {
+                      "item_name": "Apples",
+                      "quantity": "4",
+                      "unit": "medium",
+                      "note": "Granny Smith preferred"
+                    },
+                    // more items...
+                  ]
+                },
+                // more categories...
+              ]
+            }
+            
+            Only return the JSON object, no other text.
+            """
+            
+            user_prompt = f"""
+            Please create a shopping list for the following ingredients:
+            
+            {json.dumps(all_ingredients, indent=2)}
+            
+            Please consolidate duplicate items, standardize units where appropriate, and organize them by category.
+            """
+            
             # Call OpenAI API
             response = self.client.chat.completions.create(
                 model=self.model,
@@ -256,14 +304,16 @@ class OpenAIService:
                     shopping_list_items.append({
                         "item_name": item.get("item_name"),
                         "quantity": item.get("quantity", ""),
+                        "unit": item.get("unit", ""),
                         "category": category_name,
+                        "note": item.get("note", ""),
                         "is_purchased": False
                     })
             
             # Create the shopping list object
             shopping_list = {
-                "user_id": meal_plan.user_id,
-                "meal_plan_id": meal_plan.dietary_profile_id,  # This would be the actual meal_plan.id in a real implementation
+                "user_id": user_id,
+                "meal_plan_id": meal_plan_id,
                 "items": shopping_list_items
             }
             
