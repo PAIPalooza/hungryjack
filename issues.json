@@ -1,0 +1,79 @@
+[
+  {
+    "title": "Create User Input Form (Dietary Goals, Allergies, Preferences)",
+    "body": "Build a form where users can input:\n- Goal type (weight loss, gain, maintenance)\n- Dietary style (vegan, gluten-free, etc.)\n- Allergies\n- Preferred cuisines\n- Daily calorie target (optional)\n- Time to prepare meals",
+    "labels": ["frontend", "form", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Deploy Supabase Schema for Users and Dietary Profiles",
+    "body": "Create tables for:\n- users\n- dietary_profiles\nDeploy using Supabase SQL editor or CLI.",
+    "labels": ["backend", "database", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Connect to OpenAI API for Meal Plan Generation",
+    "body": "Build a FastAPI endpoint that:\n- Accepts user dietary input\n- Calls OpenAI to generate a structured 3-day meal plan\n- Returns parsed meal data",
+    "labels": ["backend", "AI integration", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Parse AI Response into Meal Objects",
+    "body": "After receiving the OpenAI meal plan:\n- Parse into structured data\n- Save to Supabase (meals, meal_plan tables)",
+    "labels": ["backend", "AI integration", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Build Nutrition Breakdown per Meal",
+    "body": "Display basic nutrition per meal:\n- Calories\n- Protein (g)\n- Carbs (g)\n- Fats (g)\nData can be estimated from AI output or enhanced with USDA API if time allows.",
+    "labels": ["backend", "nutrition", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Generate Consolidated Shopping List",
+    "body": "From all meals, generate a shopping list:\n- Ingredient name\n- Quantity estimate\n- Group by grocery category if possible (optional)",
+    "labels": ["backend", "shopping list", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Frontend: View Meal Plan and Meals",
+    "body": "Create a page where users can:\n- View their 3-day meal plan\n- View each meal's details\n- View nutrition info per meal and per day",
+    "labels": ["frontend", "UI/UX", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Frontend: View Shopping List",
+    "body": "Create a page where users can:\n- See the full shopping list\n- (Optional) Mark items as purchased",
+    "labels": ["frontend", "UI/UX", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Save Meal Plans to Supabase",
+    "body": "Once a plan is generated:\n- Save meal plan and associated meals to the database under the user's account.",
+    "labels": ["backend", "database", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Deploy Frontend to Vercel",
+    "body": "Deploy the frontend Next.js app to Vercel.\nSet up environment variables if needed for API keys.",
+    "labels": ["deployment", "Vercel", "MVP"],
+    "assignees": [],
+    "milestone": null
+  },
+  {
+    "title": "Deploy FastAPI Backend to Render/Railway",
+    "body": "Deploy FastAPI backend.\nMake sure OpenAI API calls and Supabase integration are functional.",
+    "labels": ["deployment", "backend", "MVP"],
+    "assignees": [],
+    "milestone": null
+  }
+]
