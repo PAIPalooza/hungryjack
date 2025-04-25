@@ -128,6 +128,63 @@ const HomePage: React.FC = () => {
         </Container>
       </Box>
 
+      {/* Demo Section */}
+      <Box bg="gray.50" py={16}>
+        <Container maxW="container.xl">
+          <Heading as="h2" size="xl" textAlign="center" mb={6}>
+            Try Our Features
+          </Heading>
+          <Text fontSize="lg" textAlign="center" mb={12} maxW="container.md" mx="auto">
+            Experience the power of HungryJack's AI-driven meal planning and shopping list features.
+          </Text>
+          <SimpleGrid columns={{ base: 1, md: 2 }} spacing={10} maxW="container.lg" mx="auto">
+            <Box
+              bg={cardBg}
+              p={8}
+              borderRadius="lg"
+              boxShadow="md"
+              textAlign="center"
+            >
+              <Text fontSize="4xl" mb={4}>
+                🍽️
+              </Text>
+              <Heading as="h3" size="md" mb={4}>
+                Meal Planning
+              </Heading>
+              <Text color="gray.600" mb={6}>
+                Create personalized meal plans based on your dietary preferences, restrictions, and goals.
+              </Text>
+              <Button colorScheme="green" onClick={handleGetStarted}>
+                Try Meal Planning
+              </Button>
+            </Box>
+            <Box
+              bg={cardBg}
+              p={8}
+              borderRadius="lg"
+              boxShadow="md"
+              textAlign="center"
+            >
+              <Text fontSize="4xl" mb={4}>
+                🛒
+              </Text>
+              <Heading as="h3" size="md" mb={4}>
+                Shopping List
+              </Heading>
+              <Text color="gray.600" mb={6}>
+                Generate smart shopping lists from your meal plans with categorized items and quantities.
+              </Text>
+              <Button 
+                colorScheme="blue" 
+                onClick={() => router.push('/demo-shopping-list')}
+              >
+                Try Shopping List
+              </Button>
+            </Box>
+          </SimpleGrid>
+        </Container>
+      </Box>
+
       {/* Footer */}
       <Box bg="gray.800" color="white" py={10}>
         <Container maxW="container.xl">

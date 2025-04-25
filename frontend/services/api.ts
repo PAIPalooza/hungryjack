@@ -1,25 +1,31 @@
 import { UserGoalFormData } from '../components/UserGoalForm';
 
-// API base URL - should be configured via environment variables
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Use the Next.js API proxy route to avoid CORS issues
+const API_BASE_URL = '/api/proxy';
 
 /**
  * Service for interacting with the HungryJack API
  */
 export const apiService = {
   /**
-   * Submit user dietary goals to generate a meal plan
-   * @param userGoals - User's dietary goals and preferences
-   * @returns Generated meal plan data
+   * Generate a meal plan
+   * @param data - Meal plan request data
+   * @returns Generated meal plan
    */
-  async submitUserGoals(userGoals: UserGoalFormData) {
+  async generateMealPlan(data: any) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/meal-plans`, {
+      const response = await fetch(`${API_BASE_URL}/meal-plans/generate`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify(userGoals),
+        body: JSON.stringify({
+          user_id: data.user_id || 'test-user-id',
+          dietary_profile_id: data.dietary_profile_id || 'test-profile-id',
+          days: data.days || 7,
+          start_date: data.start_date,
+          end_date: data.end_date
+        })
       });
 
       if (!response.ok) {
@@ -31,19 +37,28 @@ export const apiService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error submitting user goals:', error);
+      console.error('Error generating meal plan:', error);
       throw error;
     }
   },
 
   /**
-   * Fetch a previously generated meal plan by ID
-   * @param planId - ID of the meal plan to retrieve
-   * @returns Meal plan data
+   * Generate a shopping list from a meal plan
+   * @param data - Shopping list request data
+   * @returns Generated shopping list
    */
-  async getMealPlan(planId: string) {
+  async generateShoppingList(data: any) {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/meal-plans/${planId}`);
+      const response = await fetch(`${API_BASE_URL}/shopping-lists/generate`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          user_id: data.user_id || 'test-user-id',
+          meal_plan_id: data.meal_plan_id || 'test-meal-plan-id'
+        })
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -54,7 +69,29 @@ export const apiService = {
 
       return await response.json();
     } catch (error) {
-      console.error('Error fetching meal plan:', error);
+      console.error('Error generating shopping list:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get a test shopping list for demonstration purposes
+   * @returns Test shopping list data
+   */
+  async getTestShoppingList() {
+    try {
+      const response = await fetch(`${API_BASE_URL}/test/shopping-list`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(
+          errorData.message || `API error: ${response.status} ${response.statusText}`
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching test shopping list:', error);
       throw error;
     }
   }

@@ -19,11 +19,9 @@ import {
   CardBody,
   CardFooter,
   List,
-  ListItem,
-  ListIcon
+  ListItem
 } from '@chakra-ui/react';
-import { CheckCircleIcon, TimeIcon } from '@chakra-ui/icons';
-import apiService from '../../services/api';
+import { CheckCircleIcon, TimeIcon, ListIcon } from '@chakra-ui/icons';
 
 // Types for meal plan data
 interface Meal {
@@ -78,8 +76,95 @@ const MealPlanPage: React.FC = () => {
 
       try {
         setLoading(true);
-        const data = await apiService.getMealPlan(id as string);
-        setMealPlan(data);
+        
+        // For demo purposes, use mock data instead of API call
+        const mockMealPlan = {
+          id: id as string,
+          userId: 'demo-user',
+          createdAt: new Date().toISOString(),
+          dailyPlans: [
+            {
+              date: new Date().toISOString().split('T')[0],
+              meals: {
+                breakfast: {
+                  id: '1',
+                  name: 'Mediterranean Breakfast Bowl',
+                  description: 'A nutritious breakfast bowl with Greek yogurt and berries',
+                  calories: 350,
+                  prepTime: 5,
+                  ingredients: [
+                    'Greek yogurt',
+                    'Mixed berries',
+                    'Honey',
+                    'Granola'
+                  ],
+                  instructions: [
+                    'Mix all ingredients in a bowl and enjoy!'
+                  ],
+                  imageUrl: '',
+                  tags: []
+                },
+                lunch: {
+                  id: '2',
+                  name: 'Grilled Chicken Salad',
+                  description: 'Fresh salad with grilled chicken and mixed greens',
+                  calories: 450,
+                  prepTime: 10,
+                  ingredients: [
+                    'Chicken breast',
+                    'Mixed greens',
+                    'Cherry tomatoes',
+                    'Cucumber',
+                    'Olive oil',
+                    'Balsamic vinegar'
+                  ],
+                  instructions: [
+                    '1. Grill chicken until cooked through.',
+                    '2. Chop vegetables.',
+                    '3. Mix all ingredients and dress with oil and vinegar.'
+                  ],
+                  imageUrl: '',
+                  tags: []
+                },
+                dinner: {
+                  id: '3',
+                  name: 'Baked Salmon with Roasted Vegetables',
+                  description: 'Oven-baked salmon fillet with seasonal vegetables',
+                  calories: 550,
+                  prepTime: 15,
+                  ingredients: [
+                    'Salmon fillet',
+                    'Broccoli',
+                    'Bell peppers',
+                    'Olive oil',
+                    'Lemon',
+                    'Garlic'
+                  ],
+                  instructions: [
+                    '1. Preheat oven to 400°F.',
+                    '2. Season salmon with salt, pepper, and lemon.',
+                    '3. Chop vegetables and toss with olive oil and garlic.',
+                    '4. Bake salmon and vegetables for 15-20 minutes.'
+                  ],
+                  imageUrl: '',
+                  tags: []
+                },
+                snacks: []
+              },
+              totalCalories: 1350
+            }
+          ],
+          dietaryGoals: {
+            goalType: 'demo_goal',
+            dietaryStyles: [],
+            allergies: [],
+            preferredCuisines: [],
+            dailyCalorieTarget: 2000,
+            mealPrepTimeLimit: 30
+          }
+        };
+        
+        setMealPlan(mockMealPlan);
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : 'Failed to load meal plan';
         setError(errorMessage);
@@ -100,6 +185,10 @@ const MealPlanPage: React.FC = () => {
 
   const handleBackToGoals = () => {
     router.push('/goals');
+  };
+
+  const handleGenerateShoppingList = () => {
+    router.push(`/shopping-list/${id}`);
   };
 
   if (loading) {
@@ -226,9 +315,19 @@ const MealPlanPage: React.FC = () => {
         ))}
 
         <Box textAlign="center" mt={6}>
-          <Button colorScheme="green" size="lg" onClick={handleBackToGoals}>
-            Adjust Dietary Goals
-          </Button>
+          <HStack spacing={4} justifyContent="center">
+            <Button colorScheme="green" size="lg" onClick={handleBackToGoals}>
+              Adjust Dietary Goals
+            </Button>
+            <Button 
+              colorScheme="blue" 
+              size="lg" 
+              leftIcon={<ListIcon />}
+              onClick={handleGenerateShoppingList}
+            >
+              Generate Shopping List
+            </Button>
+          </HStack>
         </Box>
       </VStack>
     </Container>

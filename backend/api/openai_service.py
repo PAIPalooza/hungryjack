@@ -9,6 +9,8 @@ from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, Field
+import logging
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -71,286 +73,495 @@ class OpenAIService:
     
     def __init__(self):
         """Initialize the OpenAI client with API key from environment variables"""
+        # Get API key from environment variables
         api_key = os.getenv("OPENAI_API_KEY")
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set")
         
-        self.client = OpenAI(api_key=api_key)
+        if not api_key:
+            print("WARNING: OPENAI_API_KEY not found in environment variables. Using mock responses.")
+            self.use_mock = True
+        else:
+            print(f"Initializing OpenAI client with API key: {api_key[:5]}...")
+            self.use_mock = False
+            try:
+                self.client = OpenAI(api_key=api_key)
+                print("OpenAI client initialized successfully")
+            except Exception as e:
+                print(f"Error initializing OpenAI client: {str(e)}")
+                print("Falling back to mock responses")
+                self.use_mock = True
+        
         self.model = os.getenv("OPENAI_MODEL", "gpt-4o")
     
-    async def generate_meal_plan(self, dietary_profile: Dict, days: int = 3) -> MealPlan:
+    def _create_meal_plan_prompt(self, dietary_profile, days, start_date, end_date):
+        prompt = f"""
+        Generate a meal plan for {days} days starting from {start_date} and ending on {end_date} for a user with the following dietary profile:
+        
+        Goal: {dietary_profile['goal_type']}
+        Dietary styles: {', '.join(dietary_profile['dietary_styles'])}
+        Allergies: {', '.join(dietary_profile['allergies'])}
+        Preferred cuisines: {', '.join(dietary_profile['preferred_cuisines'])}
+        Daily calorie target: {dietary_profile['daily_calorie_target']}
+        Meal prep time limit: {dietary_profile['meal_prep_time_limit']} minutes
+        
+        The meal plan should include breakfast, lunch, dinner, and optional snacks for each day.
+        Each meal should include a name, description, ingredients list, and preparation instructions.
+        The meal plan should be returned as a JSON object with the following structure:
+        {
+            "days": [
+                {
+                    "day_number": 1,
+                    "date": "YYYY-MM-DD",
+                    "meals": [
+                        {
+                            "name": "Meal Name",
+                            "description": "Brief description of the meal",
+                            "meal_type": "breakfast|lunch|dinner|snack",
+                            "calories": 500,
+                            "protein_grams": 20,
+                            "carbs_grams": 50,
+                            "fat_grams": 15,
+                            "ingredients": ["ingredient 1", "ingredient 2", ...],
+                            "recipe": "Step-by-step instructions for preparing the meal",
+                            "preparation_time_minutes": 15,
+                            "cooking_time_minutes": 30
+                        },
+                        ...
+                    ],
+                    "total_calories": 2000,
+                    "total_protein_grams": 100,
+                    "total_carbs_grams": 250,
+                    "total_fat_grams": 70
+                },
+                ...
+            ]
+        }
         """
-        Generate a meal plan based on a dietary profile using OpenAI
+        return prompt
+    
+    def _extract_json_from_text(self, text):
+        start_index = text.find('{')
+        end_index = text.rfind('}') + 1
+        json_text = text[start_index:end_index]
+        return json.loads(json_text)
+    
+    def _structure_meal_plan(self, meal_plan_json, user_id, dietary_profile_id, days, start_date, end_date):
+        meal_plan = {
+            "user_id": user_id,
+            "dietary_profile_id": dietary_profile_id,
+            "start_date": start_date,
+            "end_date": end_date,
+            "days": meal_plan_json.get("days", [])
+        }
+        return meal_plan
+    
+    async def generate_meal_plan(self, user_id: str, dietary_profile_id: str, days: int, start_date: str, end_date: str) -> Dict[str, Any]:
+        """
+        Generate a meal plan using OpenAI API.
         
         Args:
-            dietary_profile: The user's dietary profile
-            days: Number of days to generate a meal plan for (default: 3)
+            user_id: User ID
+            dietary_profile_id: Dietary profile ID
+            days: Number of days for the meal plan
+            start_date: Start date for the meal plan
+            end_date: End date for the meal plan
             
         Returns:
-            A structured meal plan object
+            Generated meal plan
         """
-        # Extract relevant information from dietary profile
-        goal = dietary_profile.get("goal", "general_health")
-        diet_type = dietary_profile.get("diet_type", "omnivore")
-        calories_per_day = dietary_profile.get("calories_per_day", 2000)
-        allergies = dietary_profile.get("allergies", [])
-        excluded_foods = dietary_profile.get("excluded_foods", [])
-        preferred_foods = dietary_profile.get("preferred_foods", [])
-        
-        # Construct the prompt for OpenAI
-        system_prompt = """
-        You are a professional nutritionist and meal planner. Your task is to create a detailed, personalized meal plan based on the user's dietary preferences and goals.
-        
-        The meal plan should:
-        1. Be realistic and practical for home cooking
-        2. Include breakfast, lunch, and dinner for each day
-        3. Match the user's caloric and macronutrient targets
-        4. Avoid any foods the user is allergic to or has excluded
-        5. Include foods the user prefers when possible
-        6. Provide detailed ingredients and simple cooking instructions
-        7. Be varied and interesting across the days
-        8. Include detailed nutritional information for each meal
-        
-        Provide your response as a structured JSON object following this format:
-        {
-          "days": [
-            {
-              "day_number": 1,
-              "meals": [
-                {
-                  "meal_type": "breakfast",
-                  "name": "Meal name",
-                  "description": "Brief description",
-                  "calories": 500,
-                  "protein_grams": 30,
-                  "carbs_grams": 40,
-                  "fat_grams": 20,
-                  "ingredients": ["1 cup oats", "1 tbsp honey", ...],
-                  "recipe": "Step-by-step instructions...",
-                  "detailed_nutrition": {
-                    "fiber_grams": 8,
-                    "sugar_grams": 12,
-                    "sodium_mg": 120,
-                    "cholesterol_mg": 0,
-                    "saturated_fat_grams": 1.5,
-                    "trans_fat_grams": 0,
-                    "vitamin_a_iu": 500,
-                    "vitamin_c_mg": 15,
-                    "calcium_mg": 200,
-                    "iron_mg": 2.5
-                  }
-                },
-                // lunch and dinner meals follow the same format
-              ],
-              "total_calories": 2000,
-              "total_protein_grams": 120,
-              "total_carbs_grams": 200,
-              "total_fat_grams": 60
-            },
-            // additional days follow the same format
-          ]
-        }
-        
-        Only return the JSON object, no other text.
-        """
-        
-        user_prompt = f"""
-        Please create a {days}-day meal plan with the following requirements:
-        
-        Goal: {goal}
-        Diet type: {diet_type}
-        Target calories per day: {calories_per_day}
-        
-        Allergies/Intolerances: {', '.join(allergies) if allergies else 'None'}
-        Foods to avoid: {', '.join(excluded_foods) if excluded_foods else 'None'}
-        Preferred foods: {', '.join(preferred_foods) if preferred_foods else 'No specific preferences'}
-        
-        Please include breakfast, lunch, and dinner for each day.
-        For each meal, include detailed nutritional information including fiber, sugar, sodium, cholesterol, saturated fat, trans fat, vitamins, and minerals.
-        """
-        
         try:
-            # Call OpenAI API
-            response = self.client.chat.completions.create(
+            print(f"Starting meal plan generation for user_id: {user_id}, dietary_profile_id: {dietary_profile_id}, days: {days}")
+            
+            # For demo purposes, use a mock dietary profile
+            mock_dietary_profile = {
+                "id": dietary_profile_id,
+                "user_id": user_id,
+                "goal_type": "weight_loss",
+                "dietary_styles": ["mediterranean"],
+                "allergies": ["nuts"],
+                "preferred_cuisines": ["italian", "mexican", "asian"],
+                "daily_calorie_target": 2000,
+                "meal_prep_time_limit": 30
+            }
+            
+            # If using mock responses, return a pre-defined meal plan
+            if hasattr(self, 'use_mock') and self.use_mock:
+                print("Using mock meal plan response")
+                
+                # Create a mock meal plan with the specified number of days
+                mock_days = []
+                start_date_obj = datetime.strptime(start_date, "%Y-%m-%d")
+                
+                for day_num in range(days):
+                    current_date = (start_date_obj + timedelta(days=day_num)).strftime("%Y-%m-%d")
+                    mock_days.append({
+                        "day_number": day_num + 1,
+                        "date": current_date,
+                        "meals": [
+                            {
+                                "name": "Mediterranean Breakfast Bowl",
+                                "description": "A nutritious breakfast bowl with Greek yogurt and berries",
+                                "meal_type": "breakfast",
+                                "calories": 350,
+                                "protein_grams": 15,
+                                "carbs_grams": 45,
+                                "fat_grams": 12,
+                                "ingredients": [
+                                    {"name": "Greek yogurt", "quantity": "1 cup"},
+                                    {"name": "Mixed berries", "quantity": "1/2 cup"},
+                                    {"name": "Honey", "quantity": "1 tbsp"},
+                                    {"name": "Granola", "quantity": "1/4 cup"}
+                                ],
+                                "recipe": "Mix all ingredients in a bowl and enjoy!",
+                                "preparation_time_minutes": 5,
+                                "cooking_time_minutes": 0
+                            },
+                            {
+                                "name": "Grilled Chicken Salad",
+                                "description": "Fresh salad with grilled chicken and mixed greens",
+                                "meal_type": "lunch",
+                                "calories": 450,
+                                "protein_grams": 35,
+                                "carbs_grams": 20,
+                                "fat_grams": 25,
+                                "ingredients": [
+                                    {"name": "Chicken breast", "quantity": "6 oz"},
+                                    {"name": "Mixed greens", "quantity": "2 cups"},
+                                    {"name": "Cherry tomatoes", "quantity": "1/2 cup"},
+                                    {"name": "Cucumber", "quantity": "1/2"},
+                                    {"name": "Olive oil", "quantity": "1 tbsp"},
+                                    {"name": "Balsamic vinegar", "quantity": "1 tbsp"}
+                                ],
+                                "recipe": "1. Grill chicken until cooked through. 2. Chop vegetables. 3. Mix all ingredients and dress with oil and vinegar.",
+                                "preparation_time_minutes": 10,
+                                "cooking_time_minutes": 15
+                            },
+                            {
+                                "name": "Baked Salmon with Roasted Vegetables",
+                                "description": "Oven-baked salmon fillet with seasonal vegetables",
+                                "meal_type": "dinner",
+                                "calories": 550,
+                                "protein_grams": 40,
+                                "carbs_grams": 30,
+                                "fat_grams": 30,
+                                "ingredients": [
+                                    {"name": "Salmon fillet", "quantity": "6 oz"},
+                                    {"name": "Broccoli", "quantity": "1 cup"},
+                                    {"name": "Bell peppers", "quantity": "1"},
+                                    {"name": "Olive oil", "quantity": "1 tbsp"},
+                                    {"name": "Lemon", "quantity": "1/2"},
+                                    {"name": "Garlic", "quantity": "2 cloves"}
+                                ],
+                                "recipe": "1. Preheat oven to 400°F. 2. Season salmon with salt, pepper, and lemon. 3. Chop vegetables and toss with olive oil and garlic. 4. Bake salmon and vegetables for 15-20 minutes.",
+                                "preparation_time_minutes": 15,
+                                "cooking_time_minutes": 20
+                            }
+                        ],
+                        "total_calories": 1350,
+                        "total_protein_grams": 90,
+                        "total_carbs_grams": 95,
+                        "total_fat_grams": 67
+                    })
+                
+                return {
+                    "user_id": user_id,
+                    "dietary_profile_id": dietary_profile_id,
+                    "start_date": start_date,
+                    "end_date": end_date,
+                    "days": mock_days
+                }
+            
+            # Create prompt for meal plan generation
+            prompt = self._create_meal_plan_prompt(mock_dietary_profile, days, start_date, end_date)
+            
+            # Generate meal plan using OpenAI
+            response = await self.client.chat.completions.create(
                 model=self.model,
-                response_format={"type": "json_object"},
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "system", "content": "You are a nutritionist and meal planning expert."},
+                    {"role": "user", "content": prompt}
                 ],
                 temperature=0.7,
                 max_tokens=4000
             )
             
-            # Extract and parse the response
-            content = response.choices[0].message.content
-            meal_plan_data = json.loads(content)
+            # Parse the response
+            meal_plan_text = response.choices[0].message.content
             
-            # Create the meal plan object
-            meal_plan = {
-                "user_id": dietary_profile.get("user_id"),
-                "dietary_profile_id": dietary_profile.get("id"),
-                "start_date": "2025-04-25",  # This would be dynamic in a real implementation
-                "end_date": f"2025-04-{24 + days}",  # This would be dynamic in a real implementation
-                "days": meal_plan_data.get("days", [])
-            }
+            # Extract JSON from the response
+            meal_plan_json = self._extract_json_from_text(meal_plan_text)
             
-            # Validate the meal plan with Pydantic
-            validated_meal_plan = MealPlan(**meal_plan)
+            # Validate and structure the meal plan
+            meal_plan = self._structure_meal_plan(meal_plan_json, user_id, dietary_profile_id, days, start_date, end_date)
             
-            return validated_meal_plan
+            return meal_plan
             
         except Exception as e:
-            # In a real implementation, we would log this error
-            print(f"Error generating meal plan: {str(e)}")
-            raise
+            logging.error(f"Error generating meal plan: {str(e)}")
+            import traceback
+            logging.error(f"Traceback: {traceback.format_exc()}")
+            raise Exception(f"Failed to generate meal plan: {str(e)}")
     
-    async def generate_shopping_list(self, user_id: str, meal_plan_id: str) -> Dict:
+    def _create_shopping_list_prompt(self, meal_plan):
+        prompt = f"""
+        Generate a shopping list for the following meal plan:
+        
+        {json.dumps(meal_plan, indent=2)}
+        
+        The shopping list should be organized by category and include the following information:
+        - Item name
+        - Quantity
+        - Unit
+        - Category
+        - Note (optional)
+        
+        The shopping list should be returned as a JSON object with the following structure:
+        {
+            "categories": [
+                {
+                    "name": "Produce",
+                    "items": [
+                        {
+                            "item_name": "Apples",
+                            "quantity": "4",
+                            "unit": "medium",
+                            "note": "Granny Smith preferred"
+                        },
+                        ...
+                    ]
+                },
+                ...
+            ]
+        }
         """
-        Generate a shopping list based on a meal plan using OpenAI
+        return prompt
+    
+    def _structure_shopping_list(self, shopping_list_json, user_id, meal_plan_id):
+        shopping_list = {
+            "user_id": user_id,
+            "meal_plan_id": meal_plan_id,
+            "items": shopping_list_json.get("categories", [])
+        }
+        return shopping_list
+    
+    async def generate_shopping_list(self, user_id: str, meal_plan_id: str) -> Dict[str, Any]:
+        """
+        Generate a shopping list from a meal plan using OpenAI API.
         
         Args:
-            user_id: The ID of the user
-            meal_plan_id: The ID of the meal plan to generate a shopping list for
+            user_id: User ID
+            meal_plan_id: Meal plan ID
             
         Returns:
-            A structured shopping list object
+            Generated shopping list
         """
         try:
-            # Fetch the meal plan from Supabase
-            # For now, we'll use a mock meal plan with ingredients
+            print(f"Starting shopping list generation for user_id: {user_id}, meal_plan_id: {meal_plan_id}")
             
-            # Mock meal plan data for development
-            meal_plan = {
+            # For demo purposes, create a mock meal plan
+            mock_meal_plan = {
+                "id": meal_plan_id,
+                "user_id": user_id,
                 "days": [
                     {
-                        "day_number": 1,
+                        "date": datetime.now().strftime("%Y-%m-%d"),
                         "meals": [
                             {
+                                "name": "Mediterranean Breakfast Bowl",
                                 "meal_type": "breakfast",
-                                "name": "Meal name",
-                                "description": "Brief description",
-                                "calories": 500,
-                                "protein_grams": 30,
-                                "carbs_grams": 40,
-                                "fat_grams": 20,
-                                "ingredients": ["1 cup oats", "1 tbsp honey"],
-                                "recipe": "Step-by-step instructions..."
+                                "ingredients": [
+                                    {"name": "Greek yogurt", "quantity": "1 cup"},
+                                    {"name": "Honey", "quantity": "1 tbsp"},
+                                    {"name": "Mixed berries", "quantity": "1/2 cup"},
+                                    {"name": "Granola", "quantity": "1/4 cup"}
+                                ]
                             },
-                            # lunch and dinner meals follow the same format
-                        ],
-                        "total_calories": 2000,
-                        "total_protein_grams": 120,
-                        "total_carbs_grams": 200,
-                        "total_fat_grams": 60
-                    },
-                    # additional days follow the same format
+                            {
+                                "name": "Grilled Chicken Salad",
+                                "meal_type": "lunch",
+                                "ingredients": [
+                                    {"name": "Chicken breast", "quantity": "6 oz"},
+                                    {"name": "Mixed greens", "quantity": "2 cups"},
+                                    {"name": "Cherry tomatoes", "quantity": "1/2 cup"},
+                                    {"name": "Cucumber", "quantity": "1/2"},
+                                    {"name": "Olive oil", "quantity": "1 tbsp"},
+                                    {"name": "Balsamic vinegar", "quantity": "1 tbsp"}
+                                ]
+                            },
+                            {
+                                "name": "Baked Salmon with Roasted Vegetables",
+                                "meal_type": "dinner",
+                                "ingredients": [
+                                    {"name": "Salmon fillet", "quantity": "6 oz"},
+                                    {"name": "Broccoli", "quantity": "1 cup"},
+                                    {"name": "Bell peppers", "quantity": "1"},
+                                    {"name": "Olive oil", "quantity": "1 tbsp"},
+                                    {"name": "Lemon", "quantity": "1/2"},
+                                    {"name": "Garlic", "quantity": "2 cloves"}
+                                ]
+                            }
+                        ]
+                    }
                 ]
             }
             
-            # Extract all ingredients from the meal plan
-            all_ingredients = []
-            for day in meal_plan.get("days", []):
-                for meal in day.get("meals", []):
-                    all_ingredients.extend(meal.get("ingredients", []))
+            print(f"Created mock meal plan: {mock_meal_plan}")
             
-            # Construct the prompt for OpenAI
-            system_prompt = """
-            You are a helpful assistant that organizes shopping lists. Your task is to take a list of ingredients from a meal plan and create a consolidated, categorized shopping list.
+            # If using mock responses, return a pre-defined shopping list
+            if hasattr(self, 'use_mock') and self.use_mock:
+                print("Using mock shopping list response")
+                return {
+                    "user_id": user_id,
+                    "meal_plan_id": meal_plan_id,
+                    "items": [
+                        {
+                            "name": "Produce",
+                            "items": [
+                                {
+                                    "item_name": "Mixed berries",
+                                    "quantity": "1/2",
+                                    "unit": "cup",
+                                    "note": "Fresh or frozen"
+                                },
+                                {
+                                    "item_name": "Cherry tomatoes",
+                                    "quantity": "1/2",
+                                    "unit": "cup",
+                                    "note": ""
+                                },
+                                {
+                                    "item_name": "Cucumber",
+                                    "quantity": "1",
+                                    "unit": "medium",
+                                    "note": ""
+                                },
+                                {
+                                    "item_name": "Broccoli",
+                                    "quantity": "1",
+                                    "unit": "cup",
+                                    "note": "Fresh"
+                                },
+                                {
+                                    "item_name": "Bell peppers",
+                                    "quantity": "1",
+                                    "unit": "medium",
+                                    "note": "Any color"
+                                },
+                                {
+                                    "item_name": "Lemon",
+                                    "quantity": "1",
+                                    "unit": "medium",
+                                    "note": ""
+                                },
+                                {
+                                    "item_name": "Garlic",
+                                    "quantity": "1",
+                                    "unit": "head",
+                                    "note": "Need 2 cloves"
+                                },
+                                {
+                                    "item_name": "Mixed greens",
+                                    "quantity": "2",
+                                    "unit": "cups",
+                                    "note": "For salad"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Dairy",
+                            "items": [
+                                {
+                                    "item_name": "Greek yogurt",
+                                    "quantity": "1",
+                                    "unit": "cup",
+                                    "note": "Plain"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Meat & Seafood",
+                            "items": [
+                                {
+                                    "item_name": "Chicken breast",
+                                    "quantity": "6",
+                                    "unit": "oz",
+                                    "note": ""
+                                },
+                                {
+                                    "item_name": "Salmon fillet",
+                                    "quantity": "6",
+                                    "unit": "oz",
+                                    "note": "Fresh"
+                                }
+                            ]
+                        },
+                        {
+                            "name": "Pantry",
+                            "items": [
+                                {
+                                    "item_name": "Honey",
+                                    "quantity": "1",
+                                    "unit": "tbsp",
+                                    "note": ""
+                                },
+                                {
+                                    "item_name": "Granola",
+                                    "quantity": "1/4",
+                                    "unit": "cup",
+                                    "note": ""
+                                },
+                                {
+                                    "item_name": "Olive oil",
+                                    "quantity": "3",
+                                    "unit": "tbsp",
+                                    "note": "Extra virgin"
+                                },
+                                {
+                                    "item_name": "Balsamic vinegar",
+                                    "quantity": "1",
+                                    "unit": "tbsp",
+                                    "note": ""
+                                }
+                            ]
+                        }
+                    ]
+                }
             
-            The shopping list should:
-            1. Combine duplicate ingredients and adjust quantities (e.g., "1 cup rice" and "2 cups rice" become "3 cups rice")
-            2. Organize ingredients by category using these standard grocery categories:
-               - Produce (fruits and vegetables)
-               - Meat and Seafood
-               - Dairy and Eggs
-               - Grains and Bread
-               - Canned and Jarred Goods
-               - Dry Goods and Pantry
-               - Herbs and Spices
-               - Oils, Vinegars, and Condiments
-               - Frozen Foods
-               - Beverages
-               - Snacks
-               - Baking Supplies
-               - Other
-            3. Standardize units where possible (e.g., convert tablespoons to cups if there are many tablespoons)
-            4. Include a note field for any special instructions (e.g., "ripe for guacamole" for avocados)
-            5. Be smart about combining similar items (e.g., "red bell pepper" and "green bell pepper" could be listed as "bell peppers (1 red, 1 green)")
+            # Create prompt for shopping list generation
+            prompt = self._create_shopping_list_prompt(mock_meal_plan)
             
-            Provide your response as a structured JSON object following this format:
-            {
-              "categories": [
-                {
-                  "name": "Produce",
-                  "items": [
-                    {
-                      "item_name": "Apples",
-                      "quantity": "4",
-                      "unit": "medium",
-                      "note": "Granny Smith preferred"
-                    },
-                    // more items...
-                  ]
-                },
-                // more categories...
-              ]
-            }
+            print(f"Created prompt for OpenAI: {prompt[:200]}...")
             
-            Only return the JSON object, no other text.
-            """
-            
-            user_prompt = f"""
-            Please create a shopping list for the following ingredients:
-            
-            {json.dumps(all_ingredients, indent=2)}
-            
-            Please consolidate duplicate items, standardize units where appropriate, and organize them by category.
-            """
-            
-            # Call OpenAI API
-            response = self.client.chat.completions.create(
+            # Generate shopping list using OpenAI
+            print(f"Calling OpenAI API with model: {self.model}")
+            response = await self.client.chat.completions.create(
                 model=self.model,
-                response_format={"type": "json_object"},
                 messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
+                    {"role": "system", "content": "You are a meal planning assistant that creates organized shopping lists."},
+                    {"role": "user", "content": prompt}
                 ],
-                temperature=0.3,
+                temperature=0.7,
                 max_tokens=2000
             )
             
-            # Extract and parse the response
-            content = response.choices[0].message.content
-            shopping_list_data = json.loads(content)
+            # Parse the response
+            shopping_list_text = response.choices[0].message.content
+            print(f"Received response from OpenAI: {shopping_list_text[:200]}...")
             
-            # Transform into the format expected by the database
-            shopping_list_items = []
-            for category in shopping_list_data.get("categories", []):
-                category_name = category.get("name")
-                for item in category.get("items", []):
-                    shopping_list_items.append({
-                        "item_name": item.get("item_name"),
-                        "quantity": item.get("quantity", ""),
-                        "unit": item.get("unit", ""),
-                        "category": category_name,
-                        "note": item.get("note", ""),
-                        "is_purchased": False
-                    })
+            # Extract JSON from the response
+            shopping_list_json = self._extract_json_from_text(shopping_list_text)
+            print(f"Extracted JSON: {shopping_list_json}")
             
-            # Create the shopping list object
-            shopping_list = {
-                "user_id": user_id,
-                "meal_plan_id": meal_plan_id,
-                "items": shopping_list_items
-            }
+            # Validate and structure the shopping list
+            shopping_list = self._structure_shopping_list(shopping_list_json, user_id, meal_plan_id)
+            print(f"Structured shopping list: {shopping_list}")
             
             return shopping_list
             
         except Exception as e:
-            # In a real implementation, we would log this error
-            print(f"Error generating shopping list: {str(e)}")
-            raise
+            logging.error(f"Error generating shopping list: {str(e)}")
+            import traceback
+            logging.error(f"Traceback: {traceback.format_exc()}")
+            raise Exception(f"Failed to generate shopping list: {str(e)}")
 
 # Create a singleton instance
 openai_service = OpenAIService()

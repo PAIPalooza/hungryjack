@@ -1,0 +1,11 @@
+{
+  "user_id": "32d8438a-b1e7-458e-a721-b8cadfab63e2",
+  "dietary_profile_id": "7c63aa17-0cc6-485b-9db6-6938fbdf6693",
+  "meal_plan_request": {
+    "user_id": "32d8438a-b1e7-458e-a721-b8cadfab63e2",
+    "dietary_profile_id": "7c63aa17-0cc6-485b-9db6-6938fbdf6693",
+    "days": 1,
+    "start_date": "2025-04-25",
+    "end_date": "2025-05-02"
+  }
+}
