@@ -20,6 +20,19 @@ class Ingredient(BaseModel):
     quantity: str
     unit: Optional[str] = None
 
+class NutritionInfo(BaseModel):
+    """Model for detailed nutrition information"""
+    fiber_grams: Optional[float] = None
+    sugar_grams: Optional[float] = None
+    sodium_mg: Optional[float] = None
+    cholesterol_mg: Optional[float] = None
+    saturated_fat_grams: Optional[float] = None
+    trans_fat_grams: Optional[float] = None
+    vitamin_a_iu: Optional[float] = None
+    vitamin_c_mg: Optional[float] = None
+    calcium_mg: Optional[float] = None
+    iron_mg: Optional[float] = None
+
 class Meal(BaseModel):
     """Model for a single meal"""
     name: str
@@ -33,6 +46,7 @@ class Meal(BaseModel):
     recipe: str
     preparation_time_minutes: Optional[int] = None
     cooking_time_minutes: Optional[int] = None
+    detailed_nutrition: Optional[NutritionInfo] = None
 
 class DayPlan(BaseModel):
     """Model for a single day's meal plan"""
@@ -95,6 +109,7 @@ class OpenAIService:
         5. Include foods the user prefers when possible
         6. Provide detailed ingredients and simple cooking instructions
         7. Be varied and interesting across the days
+        8. Include detailed nutritional information for each meal
         
         Provide your response as a structured JSON object following this format:
         {
@@ -111,7 +126,19 @@ class OpenAIService:
                   "carbs_grams": 40,
                   "fat_grams": 20,
                   "ingredients": ["1 cup oats", "1 tbsp honey", ...],
-                  "recipe": "Step-by-step instructions..."
+                  "recipe": "Step-by-step instructions...",
+                  "detailed_nutrition": {
+                    "fiber_grams": 8,
+                    "sugar_grams": 12,
+                    "sodium_mg": 120,
+                    "cholesterol_mg": 0,
+                    "saturated_fat_grams": 1.5,
+                    "trans_fat_grams": 0,
+                    "vitamin_a_iu": 500,
+                    "vitamin_c_mg": 15,
+                    "calcium_mg": 200,
+                    "iron_mg": 2.5
+                  }
                 },
                 // lunch and dinner meals follow the same format
               ],
@@ -139,6 +166,7 @@ class OpenAIService:
         Preferred foods: {', '.join(preferred_foods) if preferred_foods else 'No specific preferences'}
         
         Please include breakfast, lunch, and dinner for each day.
+        For each meal, include detailed nutritional information including fiber, sugar, sodium, cholesterol, saturated fat, trans fat, vitamins, and minerals.
         """
         
         try:
