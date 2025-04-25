@@ -16,7 +16,15 @@ const GoalsPage: React.FC = () => {
     
     try {
       // Call API to generate meal plan
-      const response = await apiService.submitUserGoals(data);
+      const response = await apiService.generateMealPlan({
+        user_id: 'demo-user',
+        dietary_profile_id: 'demo-profile',
+        days: 7,
+        start_date: new Date().toISOString().split('T')[0],
+        end_date: new Date(Date.now() + 6 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+        // Include user preferences from the form
+        preferences: data
+      });
       
       // Show success toast
       toast({
@@ -27,8 +35,8 @@ const GoalsPage: React.FC = () => {
         isClosable: true,
       });
       
-      // Navigate to meal plan page
-      router.push(`/meal-plan/${response.planId}`);
+      // Navigate to demo shopping list page for now
+      router.push('/demo-shopping-list');
     } catch (err) {
       // Handle error
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';

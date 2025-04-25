@@ -17,6 +17,7 @@
     "@emotion/styled": "^11.11.0",
     "framer-motion": "^10.15.0",
     "next": "^13.4.12",
+    "next-http-proxy-middleware": "^1.2.7",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-form": "^7.45.2"
